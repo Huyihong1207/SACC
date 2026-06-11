@@ -1,0 +1,16 @@
+scanpy
+harmonypy
+anndata
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+scikit-learn
+statsmodels
+h5py
+umap-learn
+igraph
+leidenalg
+jupyterlab
+ipykernel
