@@ -17,7 +17,6 @@ ANNOTATED_H5AD = (
     / "GSE294017_paper_85142.annotated.h5ad"
 )
 RAW_H5_DIR = ROOT / "GSE294017" / "raw_h5"
-TEST_H5_DIR = ROOT / "GSE294017" / "raw_h5_test"
 OUTDIR = (
     ROOT
     / "analysis"
@@ -26,7 +25,7 @@ OUTDIR = (
     / "malignant_counts_by_sample"
 )
 CELL_LABEL = "Malignant_cells"
-MIN_MALIGNANT_CELLS = 200
+MIN_MALIGNANT_CELLS = 500
 
 
 def barcode_from_obs_name(obs_name: str) -> str:
@@ -38,10 +37,9 @@ def resolve_h5(sample_id: str) -> Path:
     gsm = f"GSM{suffix.split('_', 1)[0]}"
     patient = suffix.split("_", 1)[1]
     filename = f"{gsm}_{patient}_output_filtered.h5"
-    for base in (RAW_H5_DIR, TEST_H5_DIR):
-        candidate = base / filename
-        if candidate.exists():
-            return candidate
+    candidate = RAW_H5_DIR / filename
+    if candidate.exists():
+        return candidate
     raise FileNotFoundError(f"Missing raw h5 for {sample_id}: {filename}")
 
 
@@ -51,29 +49,29 @@ def main() -> None:
     malignant = adata[adata.obs["cluster_annotation"].astype(str) == CELL_LABEL].copy()
     malignant.obs["cell_barcode"] = [barcode_from_obs_name(x) for x in malignant.obs_names]
 
-    summary_rows = []
-    skipped_rows = []
+    summary_rows: list[dict[str, object]] = []
+    skipped_rows: list[dict[str, object]] = []
 
     for sample_id, sample_obs in malignant.obs.groupby("sample_id", observed=True):
-        h5_path = resolve_h5(str(sample_id))
+        sample_id = str(sample_id)
         sample_barcodes = sorted(sample_obs["cell_barcode"].astype(str).unique())
         if len(sample_barcodes) < MIN_MALIGNANT_CELLS:
             skipped_rows.append(
                 {
-                    "sample_id": str(sample_id),
+                    "sample_id": sample_id,
                     "n_malignant_cells": len(sample_barcodes),
                     "reason": f"below_min_malignant_cells_{MIN_MALIGNANT_CELLS}",
                 }
             )
             continue
 
-        raw = sc.read_10x_h5(h5_path)
+        raw = sc.read_10x_h5(resolve_h5(sample_id))
         raw.var_names_make_unique()
         common = sorted(set(raw.obs_names).intersection(sample_barcodes))
-        if len(common) == 0:
+        if not common:
             skipped_rows.append(
                 {
-                    "sample_id": str(sample_id),
+                    "sample_id": sample_id,
                     "n_malignant_cells": len(sample_barcodes),
                     "reason": "no_barcode_overlap_with_raw_h5",
                 }
@@ -83,33 +81,35 @@ def main() -> None:
         out = raw[common].copy()
         meta = sample_obs.set_index("cell_barcode").loc[common].copy()
         out.obs = meta
-        out.obs["sample_id"] = str(sample_id)
-        out.obs["raw_h5_path"] = str(h5_path)
-
+        out.obs["sample_id"] = sample_id
+        out.obs["source_raw_h5"] = str(resolve_h5(sample_id))
         out_path = OUTDIR / f"{sample_id}.malignant_counts.h5ad"
         out.write(out_path)
+
         summary_rows.append(
             {
-                "sample_id": str(sample_id),
-                "raw_h5_path": str(h5_path),
+                "sample_id": sample_id,
                 "n_malignant_cells_requested": len(sample_barcodes),
                 "n_malignant_cells_written": out.n_obs,
                 "n_genes": out.n_vars,
+                "source_raw_h5": str(resolve_h5(sample_id)),
                 "output_h5ad": str(out_path),
             }
         )
 
-    pd.DataFrame(summary_rows).sort_values(
+    summary_df = pd.DataFrame(summary_rows).sort_values(
         "n_malignant_cells_written", ascending=False
-    ).to_csv(OUTDIR / "extracted_samples.tsv", sep="\t", index=False)
-    pd.DataFrame(skipped_rows).sort_values(
+    )
+    skipped_df = pd.DataFrame(skipped_rows).sort_values(
         "n_malignant_cells", ascending=False
-    ).to_csv(OUTDIR / "skipped_samples.tsv", sep="\t", index=False)
+    )
+    summary_df.to_csv(OUTDIR / "extracted_samples.tsv", sep="\t", index=False)
+    skipped_df.to_csv(OUTDIR / "skipped_samples.tsv", sep="\t", index=False)
 
-    print(pd.DataFrame(summary_rows).to_string(index=False))
-    if skipped_rows:
+    print(summary_df.to_string(index=False))
+    if not skipped_df.empty:
         print("\nSkipped:")
-        print(pd.DataFrame(skipped_rows).to_string(index=False))
+        print(skipped_df.to_string(index=False))
 
 
 if __name__ == "__main__":

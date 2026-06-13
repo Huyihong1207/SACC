@@ -1,0 +1,14 @@
+sample_id	counts_h5ad	k_grid	n_iter	num_genes	status
+GSM8896646_P46_1	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896646_P46_1.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896647_P46_2	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896647_P46_2.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896643_P32	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896643_P32.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896650_P74	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896650_P74.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896652_P85	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896652_P85.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896644_P33	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896644_P33.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896653_P103	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896653_P103.malignant_counts.h5ad	4,5,6	50	3000	already_prepared
+GSM8896649_P66_2	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896649_P66_2.malignant_counts.h5ad	3,4,5	50	3000	already_prepared
+GSM8896648_P66_1	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896648_P66_1.malignant_counts.h5ad	3,4,5	50	3000	already_prepared
+GSM8896651_P79	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896651_P79.malignant_counts.h5ad	3,4,5	50	3000	already_prepared
+GSM8896641_P31_1	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896641_P31_1.malignant_counts.h5ad	2,3,4	50	3000	already_prepared
+GSM8896642_P31_2	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896642_P31_2.malignant_counts.h5ad	2,3,4	50	3000	prepared_after_zero_feature_filter
+GSM8896638_P6	/Users/niubi/Desktop/SACC/analysis/gse294017_cleanup/output/malignant_counts_by_sample/GSM8896638_P6.malignant_counts.h5ad	2,3,4	50	3000	prepared

@@ -1,0 +1,4 @@
+sample_id	n_malignant_cells	reason
+GSM8896639_P14	274	below_min_malignant_cells_500
+GSM8896640_P18	90	below_min_malignant_cells_500
+GSM8896645_P42	1	below_min_malignant_cells_500
