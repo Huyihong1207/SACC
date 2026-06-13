@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -63,6 +64,28 @@ def load_sample_table() -> pd.DataFrame:
     table["input_h5ad"] = table["output_h5ad"].astype(str)
     table["k_grid"] = table["n_malignant_cells_written"].map(k_grid_for_sample)
     return table.sort_values("n_malignant_cells_written", ascending=False)
+
+
+def completed_k_values(sample_id: str) -> list[int]:
+    sample_dir = OUTDIR / sample_id / sample_id / "cnmf_tmp"
+    run_params = load_df_from_npz(
+        str(OUTDIR / sample_id / sample_id / "cnmf_tmp" / f"{sample_id}.nmf_params.df.npz")
+    )
+    expected = (
+        run_params.groupby("n_components", observed=True)
+        .size()
+        .rename("expected")
+        .reset_index()
+        .rename(columns={"n_components": "k"})
+    )
+    rows = []
+    for k in sorted(expected["k"].astype(int).tolist()):
+        observed = len(list(sample_dir.glob(f"{sample_id}.spectra.k_{k}.iter_*.df.npz")))
+        rows.append({"k": k, "observed": observed})
+    observed_df = pd.DataFrame(rows)
+    merged = expected.merge(observed_df, on="k", how="left")
+    merged["observed"] = merged["observed"].fillna(0).astype(int)
+    return merged.loc[merged["observed"] >= merged["expected"], "k"].astype(int).tolist()
 
 
 def build_gene_list(adata: sc.AnnData, out_path: Path) -> list[str]:
@@ -144,10 +167,40 @@ def factorize_one(sample_id: str, total_workers: int, worker_index: int) -> dict
 
 def finalize_one(sample_id: str, k_grid: list[int]) -> tuple[pd.DataFrame, pd.DataFrame]:
     runner = cNMF(output_dir=str(OUTDIR / sample_id), name=sample_id)
-    runner.combine()
-    runner.k_selection_plot(close_fig=True)
+    runner.combine(components=k_grid)
+    stats = []
+    norm_counts = sc.read(runner.paths["normalized_counts"])
+    for k in k_grid:
+        stats.append(
+            runner.consensus(
+                k,
+                skip_density_and_return_after_stats=True,
+                show_clustering=False,
+                close_clustergram_fig=True,
+                norm_counts=norm_counts,
+            ).stats
+        )
+    stats = pd.DataFrame(stats)
+    stats.reset_index(drop=True, inplace=True)
+    stats.to_csv(OUTDIR / sample_id / f"{sample_id}.k_selection_stats.tsv", sep="\t", index=False)
 
-    stats = load_df_from_npz(runner.paths["k_selection_stats"]).copy()
+    fig = plt.figure(figsize=(6, 4))
+    ax1 = fig.add_subplot(111)
+    ax2 = ax1.twinx()
+    ax1.plot(stats.k, stats.silhouette, "o-", color="b")
+    ax1.set_ylabel("Stability", color="b")
+    for tick in ax1.get_yticklabels():
+        tick.set_color("b")
+    ax2.plot(stats.k, stats.prediction_error, "o-", color="r")
+    ax2.set_ylabel("Error", color="r")
+    for tick in ax2.get_yticklabels():
+        tick.set_color("r")
+    ax1.set_xlabel("Number of Components")
+    ax1.grid("on")
+    plt.tight_layout()
+    fig.savefig(OUTDIR / sample_id / f"{sample_id}.k_selection.png", dpi=250)
+    plt.close(fig)
+
     stats["sample_id"] = sample_id
     stats = stats.sort_values("k").reset_index(drop=True)
 
@@ -156,20 +209,28 @@ def finalize_one(sample_id: str, k_grid: list[int]) -> tuple[pd.DataFrame, pd.Da
     candidate = candidate.sort_values(["prediction_error", "k"], ascending=[True, True])
     selected_k = int(candidate.iloc[0]["k"])
 
-    consensus = runner.consensus(
+    runner.consensus(
         selected_k,
         density_threshold=DENSITY_THRESHOLD,
         local_neighborhood_size=LOCAL_NEIGHBORHOOD_SIZE,
         show_clustering=False,
         close_clustergram_fig=True,
     )
-    selected_stats = consensus.stats.copy()
+    selected_stats = stats.loc[stats["k"] == selected_k].copy()
     selected_stats["sample_id"] = sample_id
     selected_stats["selected_k"] = selected_k
     selected_stats["k_grid"] = ",".join(map(str, k_grid))
     selected_stats["density_threshold"] = DENSITY_THRESHOLD
     selected_stats["local_neighborhood_size"] = LOCAL_NEIGHBORHOOD_SIZE
-    return stats, pd.DataFrame([selected_stats])
+    selected_stats["consensus_spectra_txt"] = runner.paths["consensus_spectra__txt"] % (
+        selected_k,
+        str(DENSITY_THRESHOLD).replace(".", "_"),
+    )
+    selected_stats["consensus_usages_txt"] = runner.paths["consensus_usages__txt"] % (
+        selected_k,
+        str(DENSITY_THRESHOLD).replace(".", "_"),
+    )
+    return stats, selected_stats
 
 
 def parse_args() -> argparse.Namespace:
@@ -239,9 +300,12 @@ def main() -> None:
     all_stats = []
     selected_rows = []
     for row in table.itertuples(index=False):
+        k_grid = completed_k_values(str(row.sample_id))
+        if not k_grid:
+            continue
         stats, selected = finalize_one(
             sample_id=str(row.sample_id),
-            k_grid=list(row.k_grid),
+            k_grid=k_grid,
         )
         all_stats.append(stats)
         selected_rows.append(selected)
